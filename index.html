@@ -166,7 +166,7 @@ const CONFIG = {
   PUBLISHED: { acs: "", slr: "", str: "" },
   /* seller details + fixed texts printed on the cash-sale invoice */
   SHOP: { name:"A-Z LAPTOPS", address:"'NEGOMBO CITY CENTRE' No: 198, St. Joseph's Street. Negombo.", phone:"071 533 5010", email:"negombocitycentre@gmail.com" },
-  INVOICE_PREFIX: "NCC",         /* invoice no. = NCC + OTHER 1 REF (column B) + last 4 digits of the MPL no. */
+  INVOICE_PREFIX: "NCC",         /* invoice no. = NCC + 4-letter code from OTHER 1 REF (column B, leading "BC" dropped) + last 4 digits of the MPL no. */
   PAYMENT_MODE: "Cash",
   TERMS: [
     "SUPER & STANDARD Laptops: 6-month warranty (3 months comprehensive + 3 months service only).",
@@ -485,16 +485,29 @@ function specEn(spec){   /* "I7.3RD/8/256/15.6" -> ["Intel Core i7","3RD Gen","8
   const q = sto ? stoParts(sto) : null;
   return ["Intel Core i" + cm[1], gm ? ordEn(+gm[1]) + " Gen" : "", ram + " GB RAM", q ? q.val + " " + q.unit + " " + q.type : "", scr ? realScreen(scr) + '" Display' : ""].filter(Boolean);
 }
+/* accessories list without duplicates and without RAM / storage entries (those already come from the specification) */
+function accList(raw, spec){
+  const nk = x => String(x).toUpperCase().replace(/[^A-Z0-9.]/g, "");
+  const seen = new Set(specEn(spec).map(nk)), out = [];
+  for (let a of clean(raw).split(/[,;\/\n|]+/)){
+    a = a.replace(/^\s*NCC[A-Z]*\d+\s*/i, "").trim();
+    if (!a || /\d\s*(GB|TB)\b/i.test(a) && /(RAM|SSD|HDD|DDR|STORAGE|MEMORY)/i.test(a)) continue;
+    if (seen.has(nk(a))) continue;
+    seen.add(nk(a)); out.push(a);
+  }
+  return out;
+}
 function printInvoice(r, o){
   const g = i => clean(r[i]), shop = CONFIG.SHOP;
   const rs = n => n == null ? "—" : "Rs " + fmt(n);
   const dmy = d => d ? String(d.getDate()).padStart(2,"0") + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + d.getFullYear() : "—";
   const mobile = normalizeMobile((LAST && LAST.mob) || "");
   /* invoice no. = NCC + OTHER 1 REF (column B) + last 4 digits of the MPL no. */
-  const invNo = CONFIG.INVOICE_PREFIX + g(S.ref1).replace(/\s+/g, "").toUpperCase() + g(S.mpl).replace(/\D/g, "").slice(-4);
+  const code = g(S.ref1).toUpperCase().replace(/[^A-Z]/g, "").replace(/^BC/, "").slice(0, 4);
+  const invNo = CONFIG.INVOICE_PREFIX + code + g(S.mpl).replace(/\D/g, "").slice(-4);
   const today = new Date();
-  const acc = g(S.accessories).split(/[,;\/\n]+/).map(x => x.replace(/^\s*NCC[A-Z]*\d+\s*/i, "").trim()).filter(Boolean);
-  const parts = [...specEn(g(S.spec)), g(S.os), ...acc].filter(Boolean);
+  const acc = accList(g(S.accessories), g(S.spec));
+  const parts = [...new Set([...specEn(g(S.spec)), g(S.os), ...acc].filter(Boolean))];
   const ncc = [g(S.batch), g(S.serial)].filter(Boolean).join(" | ");
   const amt = o.inv, words = amt == null ? "" : numWords(amt) + " Rupees" + (Math.round((amt % 1) * 100) ? " and " + numWords(Math.round((amt % 1) * 100)) + " Cents" : "") + " only";
   return `<section class="pinv" aria-hidden="true">
@@ -549,7 +562,7 @@ function renderInvoice(r){
   </div>`;
   const items = `<div class="sheet"><div class="sec">${t("itemTitle")}</div>
     ${kv(t("prod"), t("laptop") + (cat ? " / " + esc(titleCase(cat)) : ""))}
-    ${opt(t("model"), g(S.model))}${specRows(g(S.spec)) || opt(t("spec"), g(S.spec))}${opt(t("serial"), g(S.serial))}${opt(t("accessories"), g(S.accessories))}
+    ${opt(t("model"), g(S.model))}${specRows(g(S.spec)) || opt(t("spec"), g(S.spec))}${opt(t("serial"), g(S.serial))}${opt(t("accessories"), accList(g(S.accessories), g(S.spec)).join(", "))}
   </div>`;
   const amt = `<div class="sheet"><div class="sec">${t("amtTitle")}</div>
     ${svc > 0 ? kv(t("svcAmt"), money(svc)) : ""}${del > 0 ? kv(t("delAmt"), money(del)) : ""}
