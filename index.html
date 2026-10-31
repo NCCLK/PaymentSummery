@@ -120,6 +120,7 @@ footer button{background:none;border:0;color:var(--blue);font-weight:600;cursor:
   .pinv .pi-sb{text-align:center}
   .pinv .pi-space{height:62px}
   .pinv .pi-line{border-top:1.5px solid #333;padding-top:4px}
+  .pinv .pi-nm{margin-top:2px;font-weight:600;font-size:11px}
   .pinv .pi-dt{margin-top:6px;font-size:10.5px;color:#444;text-align:left}
   .pinv .pi-end{margin-top:28px;border-bottom:1px dashed #aaa}
   .pinv tr,.pinv .pi-cols>div{break-inside:avoid}
@@ -165,7 +166,7 @@ const CONFIG = {
   PUBLISHED: { acs: "", slr: "", str: "" },
   /* seller details + fixed texts printed on the cash-sale invoice */
   SHOP: { name:"A-Z LAPTOPS", address:"'NEGOMBO CITY CENTRE' No: 198, St. Joseph's Street. Negombo.", phone:"071 533 5010", email:"negombocitycentre@gmail.com" },
-  INVOICE_PREFIX: "NCCMSI",      /* invoice no. = prefix + number of the MPL ref (MPLNCC1612 -> NCCMSI1612) unless the sheet has an Invoice No. column */
+  INVOICE_PREFIX: "NCC",         /* invoice no. = NCC + OTHER 1 REF (column B) + last 4 digits of the MPL no. */
   PAYMENT_MODE: "Cash",
   TERMS: [
     "SUPER & STANDARD Laptops: 6-month warranty (3 months comprehensive + 3 months service only).",
@@ -440,6 +441,15 @@ function warrantyFor(mplKey, d, idx){   /* warranty always counts from the invoi
 }
 const warranty = (r, idx) => warrantyFor(key(r[C.mpl]), invDateOf(r), idx);
 
+/* storage: a size NOT ending in 0 is an SSD (128, 256, 512); ending in 0 is an HDD (320, 500) */
+function stoParts(n){
+  const big = n <= 4 || n >= 1000, type = Math.round(n) % 10 === 0 ? "HDD" : "SSD";
+  return big ? {val: n >= 1000 ? +(n / 1000).toFixed(2) : n, unit:"TB", type} : {val:n, unit:"GB", type};
+}
+/* the number in the spec is the nominal screen size; these are the real panel sizes */
+const SCREEN = {11:11.6, 12:12.5, 13:13.3, 14:14.1, 15:15.6};
+const realScreen = n => SCREEN[n] || n;
+
 /* "I7.8TH/8/256/14" = Core i7 . 8th gen / 8 GB RAM / 256 GB storage / 14" screen */
 function specRows(spec){
   const p = clean(spec).toUpperCase().replace(/\s+/g, "").split("/");
@@ -448,9 +458,9 @@ function specRows(spec){
   const num = x => { const n = parseFloat(String(x || "").replace(/[^0-9.]/g, "")); return isNaN(n) ? null : n; };
   const ram = num(p[1]), sto = num(p[2]), scr = num(p[3]);
   if (!cm || ram == null || sto == null) return null;   /* unknown pattern: caller shows the raw text */
-  const size = n => (n <= 4 || n >= 1000) ? t("tb", n >= 1000 ? +(n / 1000).toFixed(2) : n) : t("gb", n);
+  const size = n => { const q = stoParts(n); return t(q.unit === "TB" ? "tb" : "gb", q.val) + " " + q.type; };
   return kv(t("cpu"), esc(t("cpuV", cm[1]))) + (gm ? kv(t("gen"), esc(t("genV", +gm[1]))) : "") +
-    kv(t("ram"), esc(t("gb", ram))) + kv(t("storage"), esc(size(sto))) + (scr ? kv(t("screen"), esc(t("inch", scr))) : "");
+    kv(t("ram"), esc(t("gb", ram))) + (sto ? kv(t("storage"), esc(size(sto))) : "") + (scr ? kv(t("screen"), esc(t("inch", realScreen(scr)))) : "");
 }
 
 /* ---- printed cash-sale invoice (always English, formal layout) ---- */
@@ -472,19 +482,20 @@ function specEn(spec){   /* "I7.3RD/8/256/15.6" -> ["Intel Core i7","3RD Gen","8
   const num = x => { const n = parseFloat(String(x || "").replace(/[^0-9.]/g, "")); return isNaN(n) ? null : n; };
   const ram = num(p[1]), sto = num(p[2]), scr = num(p[3]);
   if (!cm || ram == null || sto == null) return clean(spec) ? [clean(spec)] : [];
-  const size = n => (n <= 4 || n >= 1000) ? (n >= 1000 ? +(n/1000).toFixed(2) : n) + " TB" : n + " GB";
-  const typ = (/SSD/i.test(spec) ? " SSD" : /HDD/i.test(spec) ? " HDD" : "");
-  return ["Intel Core i" + cm[1], gm ? ordEn(+gm[1]) + " Gen" : "", ram + " GB RAM", (sto ? size(sto) + typ : ""), scr ? scr + '" Display' : ""].filter(Boolean);
+  const q = sto ? stoParts(sto) : null;
+  return ["Intel Core i" + cm[1], gm ? ordEn(+gm[1]) + " Gen" : "", ram + " GB RAM", q ? q.val + " " + q.unit + " " + q.type : "", scr ? realScreen(scr) + '" Display' : ""].filter(Boolean);
 }
 function printInvoice(r, o){
   const g = i => clean(r[i]), shop = CONFIG.SHOP;
   const rs = n => n == null ? "—" : "Rs " + fmt(n);
   const dmy = d => d ? String(d.getDate()).padStart(2,"0") + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + d.getFullYear() : "—";
   const mobile = normalizeMobile((LAST && LAST.mob) || "");
-  const invNo = g(S.invNo) || (CONFIG.INVOICE_PREFIX + (/(\d+)\s*$/.exec(g(S.mpl)) || [,""])[1]);
+  /* invoice no. = NCC + OTHER 1 REF (column B) + last 4 digits of the MPL no. */
+  const invNo = CONFIG.INVOICE_PREFIX + g(S.ref1).replace(/\s+/g, "").toUpperCase() + g(S.mpl).replace(/\D/g, "").slice(-4);
+  const today = new Date();
   const acc = g(S.accessories).split(/[,;\/\n]+/).map(x => x.replace(/^\s*NCC[A-Z]*\d+\s*/i, "").trim()).filter(Boolean);
   const parts = [...specEn(g(S.spec)), g(S.os), ...acc].filter(Boolean);
-  const ncc = [g(S.ref1), g(S.serial)].filter(Boolean).join(" | ");
+  const ncc = [g(S.batch), g(S.serial)].filter(Boolean).join(" | ");
   const amt = o.inv, words = amt == null ? "" : numWords(amt) + " Rupees" + (Math.round((amt % 1) * 100) ? " and " + numWords(Math.round((amt % 1) * 100)) + " Cents" : "") + " only";
   return `<section class="pinv" aria-hidden="true">
     <div class="pi-top"><img src="logo.png" alt="NCC">
@@ -493,7 +504,7 @@ function printInvoice(r, o){
     <div class="pi-parties">
       <div><b>Bill To</b><b style="margin-top:8px">${esc(o.name) || "—"}</b>${g(S.address) ? `<div>${esc(g(S.address))}</div>` : ""}${mobile ? `<div style="margin-top:6px">Contact No. : 0${mobile}</div>` : ""}</div>
       <div><b>Ship To</b>${g(S.shipTo) ? `<div style="margin-top:8px">${esc(g(S.shipTo))}</div>` : ""}</div>
-      <div class="pi-r"><b>Invoice Details</b><div style="margin-top:8px">Invoice No. : ${esc(invNo)}</div><div>Date : ${dmy(o.d)}</div></div>
+      <div class="pi-r"><b>Invoice Details</b><div style="margin-top:8px">Invoice No. : ${esc(invNo)}</div><div>Date : <span class="pi-date">${dmy(today)}</span></div></div>
     </div>
     <table class="pi-items"><thead><tr><th style="width:4%">#</th><th>Item name</th><th>MPL No,</th><th>Category</th><th class="n">Quantity</th><th class="n">Price/ Unit</th><th class="n">Amount</th></tr></thead>
       <tbody><tr><td>1</td><td><b>${esc(g(S.model)) || "Laptop"}</b><span class="sm">( ${esc(parts.join(" | "))} )</span><span class="sm">NCC Ref. | Serial No.: ${esc(ncc)}</span></td>
@@ -514,8 +525,8 @@ function printInvoice(r, o){
       </div>
     </div>
     <div class="pi-sig">
-      <div class="pi-sb"><div class="pi-for">&nbsp;</div><div class="pi-space"></div><div class="pi-line">Customer Signature</div><div class="pi-dt">Name: ............................................ &nbsp; Date: ......................</div></div>
-      <div class="pi-sb"><div class="pi-for">For : ${esc(shop.name)}</div><div class="pi-space"></div><div class="pi-line"><b>NCC Authorized Officer</b></div><div class="pi-dt">Date: ......................</div></div>
+      <div class="pi-sb"><div class="pi-space"></div><div class="pi-line">Customer Signature</div><div class="pi-nm">${esc(o.name)}</div><div class="pi-dt">Date: ......................</div></div>
+      <div class="pi-sb"><div class="pi-space"></div><div class="pi-line"><b>NCC Authorized Officer</b></div><div class="pi-nm">${esc(shop.name)}</div><div class="pi-dt">Date: ......................</div></div>
     </div>
     <div class="pi-end"></div>
   </section>`;
@@ -703,6 +714,8 @@ async function search(mplV, mobV, force){
   finally { btn.disabled = false; btn.textContent = t("search"); }
 }
 $("form").addEventListener("submit", e => { e.preventDefault(); search(mplIn.value, mobIn.value); document.activeElement.blur(); });
+window.addEventListener("beforeprint", () => { const d = new Date();
+  document.querySelectorAll(".pi-date").forEach(e => e.textContent = String(d.getDate()).padStart(2,"0") + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + d.getFullYear()); });
 prn.addEventListener("click", () => window.print());
 window.addEventListener("hashchange", fromHash);
 show(vStart); applyLang();
