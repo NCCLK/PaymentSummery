@@ -166,6 +166,7 @@ const CONFIG = {
   PUBLISHED: { acs: "", slr: "", str: "" },
   /* seller details + fixed texts printed on the cash-sale invoice */
   SHOP: { name:"A-Z LAPTOPS", address:"'NEGOMBO CITY CENTRE' No: 198, St. Joseph's Street. Negombo.", phone:"071 533 5010", email:"negombocitycentre@gmail.com" },
+  BALANCE_COL: "AL",             /* "Balance Due (Rs.)" on the account summary is read from this sheet column (blank = use Invoice Value - Total Paid) */
   INVOICE_PREFIX: "NCC",         /* invoice no. = NCC + 4-letter code from OTHER 1 REF (column B, leading "BC" dropped) + last 4 digits of the MPL no. */
   PAYMENT_MODE: "Cash",
   TERMS: [
@@ -190,6 +191,7 @@ const DEF_SLR = { mpl:0, batch:3, serial:5, model:6, spec:7, category:8, accesso
   service:12, delivery:13, invoiceAmt:14, invDate:16, issued:17, ref1:1, shipTo:20,
   address:-1, invNo:-1, desc:-1, os:-1 };   /* -1 = optional column, used only if a matching header exists */
 let C = {...DEF_ACS}, S = {...DEF_SLR};
+const colIndex = L => String(L || "").toUpperCase().split("").reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
 const norm = x => String(x ?? "").replace(/\s+/g, " ").trim().toLowerCase();
 function mapHeaders(rows, anchor, defs, spec, maxRows=12){
   /* spec: field -> [regex, rowOffset(0 = header row, 1 = row below)] ; returns merged map */
@@ -216,6 +218,7 @@ function mapAcs(rows){
   const okCount = c => data.filter(r => /^ok$/i.test(clean(r[c]))).length;
   if (okCount(m.lateStatus) < 3){ let best = 0, bc = m.lateStatus; for (let c = m.paid + 18; c <= m.paid + 45; c++){ const k = okCount(c); if (k > best){ best = k; bc = c; } } if (best >= 3) m.lateStatus = bc; }
   const st = m.lateStatus;
+  m.balanceCol = CONFIG.BALANCE_COL ? colIndex(CONFIG.BALANCE_COL) : -1;
   Object.assign(m, { insAmt:st+1, overdue:st+2, lateChg:st+3, totalOver:st+4, latePaid:st+5, discount:st+6, pendingLate:st+7, received:st+8, finalOut:st+9 });
   return m;
 }
@@ -590,7 +593,9 @@ function renderInvoice(r){
 
 function render(r){
   const g = i => clean(r[i]);
-  const invoice = toNum(g(C.invoice)), paid = toNum(g(C.paid)), bal = toNum(g(C.balance));
+  const invoice = toNum(g(C.invoice)), paid = toNum(g(C.paid));
+  const balCol = C.balanceCol >= 0 ? toNum(g(C.balanceCol)) : null;
+  const bal = balCol != null ? balCol : toNum(g(C.balance));   /* Balance Due comes from column AL; falls back to the plain balance if AL is empty */
   const dpAmt = toNum(g(C.dpAmt)), insAmt = toNum(g(C.insAmt));
   const lateOk = g(C.lateStatus).toUpperCase() === "OK";
   const today = (ASOF && parseDate(ASOF, true)) || new Date(); today.setHours(0,0,0,0);
