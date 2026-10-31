@@ -166,7 +166,7 @@ const CONFIG = {
   PUBLISHED: { acs: "", slr: "", str: "" },
   /* seller details + fixed texts printed on the cash-sale invoice */
   SHOP: { name:"A-Z LAPTOPS", address:"'NEGOMBO CITY CENTRE' No: 198, St. Joseph's Street. Negombo.", phone:"071 533 5010", email:"negombocitycentre@gmail.com" },
-  BALANCE_COL: "AL",             /* "Balance Due (Rs.)" on the account summary is read from this sheet column (blank = use Invoice Value - Total Paid) */
+  BALANCE_COL: "AS",             /* "Balance Due (Rs.)" on the account summary is read from this sheet column (blank = use Invoice Value - Total Paid) */
   INVOICE_PREFIX: "NCC",         /* invoice no. = NCC + 4-letter code from OTHER 1 REF (column B, leading "BC" dropped) + last 4 digits of the MPL no. */
   PAYMENT_MODE: "Cash",
   TERMS: [
@@ -436,7 +436,7 @@ const kv = (k, v, cls="", row="") => `<div class="kv ${row}"><div class="k">${k}
 
 function productText(r){
   const i = INFO[key(r[C.mpl])]; if (!i) return "—";
-  const c = CAT[i.batch] || CAT[i.serial]; return c ? t("laptop") + " / " + esc(titleCase(c)) : t("laptop");
+  const c = CAT[i.batch] || CAT[i.serial]; return (c ? t("laptop") + " | " + esc(c.toUpperCase()) : t("laptop")).toUpperCase();
 }
 const invDateOf = r => parseDate(r[C.invDate]) || parseDate((INFO[key(r[C.mpl])] || {}).inv);
 function warrantyFor(mplKey, d, idx){   /* warranty always counts from the invoice date */
@@ -570,7 +570,7 @@ function renderInvoice(r){
     ${kv(t("saleType"), t("cashSale"))}
   </div>`;
   const items = `<div class="sheet"><div class="sec">${t("itemTitle")}</div>
-    ${kv(t("prod"), t("laptop") + (cat ? " / " + esc(titleCase(cat)) : ""))}
+    ${kv(t("prod"), (t("laptop") + (cat ? " | " + esc(cat.toUpperCase()) : "")).toUpperCase())}
     ${opt(t("model"), g(S.model))}${specRows(g(S.spec)) || opt(t("spec"), g(S.spec))}${opt(t("serial"), g(S.serial))}${opt(t("accessories"), accList(g(S.accessories), g(S.spec)).join(", "))}
   </div>`;
   const amt = `<div class="sheet"><div class="sec">${t("amtTitle")}</div>
@@ -604,14 +604,14 @@ function render(r){
     ${kv(t("mplNo"), esc(g(C.mpl)))}
     ${kv(t("name"), esc(g(C.name)) || "—", "", "name")}
     <div class="sec">${t("acctTitle")}</div>
-    ${kv(t("invoiceVal"), money(invoice))}
+    ${kv(t("invoiceVal"), plain(invoice))}
     ${kv(t("invDate"), (invDateOf(r) ? esc(fmtDate(invDateOf(r))) : "—"))}
-    ${kv(t("totalPaid"), money(paid))}
-    ${kv(t("balDue"), money(bal) + (bal < 0 ? ` <span class="sub">${t("excess")}</span>` : ""), bal > 0 ? "red" : "")}
-    ${kv(t("dpAmt"), money(dpAmt))}
+    ${kv(t("totalPaid"), plain(paid))}
+    ${kv(t("balDue"), plain(bal) + (bal < 0 ? ` <span class="sub">${t("excess")}</span>` : ""), bal > 0 ? "red" : "")}
+    ${kv(t("dpAmt"), plain(dpAmt))}
     ${kv(t("dpDate"), esc(showDate(g(C.dpDate))) || "—")}
     ${kv(t("nIns"), esc(g(C.nIns)) || "—")}
-    ${kv(t("insAmt"), money(insAmt))}
+    ${kv(t("insAmt"), plain(insAmt))}
     ${kv(t("prod"), productText(r))}
     ${kv(t("wFull"), warranty(r, 0))}
     ${kv(t("wSvc"), warranty(r, 1))}
@@ -660,9 +660,7 @@ function render(r){
       kv(t("lTotal"), money(totalOver), totalOver > 0 ? "red" : "") +
       kv(t("lPaid"), money(lPaid)) +
       kv(t("lDisc"), money(disc)) +
-      kv(t("lPending"), money(pending), pending > 0 ? "red" : "") +
-      kv(t("lRecv"), money(recv)) +
-      kv(t("lFinal"), money(fin), "", "strong" + (fin != null && fin <= 0 ? " okrow" : ""));
+      kv(t("lPending"), money(pending), pending > 0 ? "red" : "");
   } else lateHtml = `<div class="note">${t("lateNA")}</div>`;
 
   const late = `<div class="sheet"><div class="sec late">${t("lateTitle")}</div>${lateHtml}</div>`;
