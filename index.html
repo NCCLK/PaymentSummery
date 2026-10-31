@@ -201,6 +201,8 @@ const I18N = {
   lDisc:"Late Charges Discount (Rs.)", lPending:"Pending Late Charges (Rs.)", lRecv:"Total Payments Received (Rs.)", lFinal:"Final Outstanding (Rs.)",
   lateNA:"Overdue and late charge details are not available for this account yet. Please contact us for a full statement.",
   invTitle:"DIGITAL INVOICE", itemTitle:"ITEM DETAILS", amtTitle:"INVOICE AMOUNT", wTitle:"WARRANTY DETAILS",
+  cpu:"Processor", gen:"Generation", ram:"RAM", storage:"Storage", screen:"Display Size",
+  cpuV:n=>`Intel Core i${n}`, genV:n=>{const o=n%100,x=(o>=11&&o<=13)?"th":({1:"st",2:"nd",3:"rd"}[n%10]||"th");return `${n}${x} Generation`;}, gb:n=>`${n} GB`, tb:n=>`${n} TB`, inch:n=>`${n} inch`,
   saleType:"Sale Type", cashSale:"Cash Sale", model:"Model", spec:"Specification", serial:"Serial No.", accessories:"Accessories",
   svcAmt:"Service Amt. (Rs.)", delAmt:"Delivery Amt. (Rs.)", invAmt:"Invoice Amount (Rs.)", wStart:"Warranty Starts (Invoice Date)",
   printed:"Printed", refresh:"Refresh from sheet", clear:"New search", copied:"Link copied", copyPrompt:"Copy this link", rs:"Rs."
@@ -228,6 +230,8 @@ const I18N = {
   lDisc:"ප්‍රමාද ගාස්තු වට්ටම (රු.)", lPending:"ගෙවිය යුතු ප්‍රමාද ගාස්තු (රු.)", lRecv:"ලැබුණු මුළු ගෙවීම් (රු.)", lFinal:"අවසාන හිඟ මුදල (රු.)",
   lateNA:"මෙම ගිණුම සඳහා කල් පසු වූ ගෙවීම් සහ ප්‍රමාද ගාස්තු විස්තර තවම නොමැත. සම්පූර්ණ ප්‍රකාශයක් සඳහා කරුණාකර අප අමතන්න.",
   invTitle:"ඩිජිටල් ඉන්වොයිසිය", itemTitle:"භාණ්ඩ විස්තර", amtTitle:"ඉන්වොයිස් මුදල", wTitle:"වගකීම් විස්තර",
+  cpu:"ප්‍රොසෙසරය", gen:"පරම්පරාව", ram:"RAM මතකය", storage:"ගබඩා ධාරිතාව", screen:"තිරයේ ප්‍රමාණය",
+  cpuV:n=>`Intel Core i${n}`, genV:n=>`${n} වන පරම්පරාව`, gb:n=>`${n} GB`, tb:n=>`${n} TB`, inch:n=>`අඟල් ${n}`,
   saleType:"විකුණුම් වර්ගය", cashSale:"මුදල් විකුණුම", model:"මාදිලිය", spec:"පිරිවිතර", serial:"අනුක්‍රමික අංකය", accessories:"උපාංග",
   svcAmt:"සේවා ගාස්තුව (රු.)", delAmt:"බෙදාහැරීමේ ගාස්තුව (රු.)", invAmt:"ඉන්වොයිස් මුදල (රු.)", wStart:"වගකීම ආරම්භය (ඉන්වොයිස් දිනය)",
   printed:"මුද්‍රණය කළ දිනය", refresh:"පත්‍රිකාවෙන් යළි පූරණය කරන්න", clear:"නව සෙවුමක්", copied:"සබැඳිය පිටපත් කරන ලදී", copyPrompt:"මෙම සබැඳිය පිටපත් කරන්න", rs:"රු."
@@ -389,6 +393,19 @@ function warrantyFor(mplKey, d, idx){   /* warranty always counts from the invoi
 }
 const warranty = (r, idx) => warrantyFor(key(r[C.mpl]), invDateOf(r), idx);
 
+/* "I7.8TH/8/256/14" = Core i7 . 8th gen / 8 GB RAM / 256 GB storage / 14" screen */
+function specRows(spec){
+  const p = clean(spec).toUpperCase().replace(/\s+/g, "").split("/");
+  const [c, gen] = (p[0] || "").split(".");
+  const cm = /^I([3579])$/.exec(c || ""), gm = /^(\d{1,2})(?:ST|ND|RD|TH)?$/.exec(gen || "");
+  const num = x => { const n = parseFloat(String(x || "").replace(/[^0-9.]/g, "")); return isNaN(n) ? null : n; };
+  const ram = num(p[1]), sto = num(p[2]), scr = num(p[3]);
+  if (!cm || ram == null || sto == null) return null;   /* unknown pattern: caller shows the raw text */
+  const size = n => (n <= 4 || n >= 1000) ? t("tb", n >= 1000 ? +(n / 1000).toFixed(2) : n) : t("gb", n);
+  return kv(t("cpu"), esc(t("cpuV", cm[1]))) + (gm ? kv(t("gen"), esc(t("genV", +gm[1]))) : "") +
+    kv(t("ram"), esc(t("gb", ram))) + kv(t("storage"), esc(size(sto))) + (scr ? kv(t("screen"), esc(t("inch", scr))) : "");
+}
+
 /* digital invoice for cash-sale customers (found in MPL-SLR only) */
 function renderInvoice(r){
   const g = i => clean(r[i]);
@@ -406,7 +423,7 @@ function renderInvoice(r){
   </div>`;
   const items = `<div class="sheet"><div class="sec">${t("itemTitle")}</div>
     ${kv(t("prod"), t("laptop") + (cat ? " / " + esc(titleCase(cat)) : ""))}
-    ${opt(t("model"), g(S.model))}${opt(t("spec"), g(S.spec))}${opt(t("serial"), g(S.serial))}${opt(t("accessories"), g(S.accessories))}
+    ${opt(t("model"), g(S.model))}${specRows(g(S.spec)) || opt(t("spec"), g(S.spec))}${opt(t("serial"), g(S.serial))}${opt(t("accessories"), g(S.accessories))}
   </div>`;
   const amt = `<div class="sheet"><div class="sec">${t("amtTitle")}</div>
     ${svc > 0 ? kv(t("svcAmt"), money(svc)) : ""}${del > 0 ? kv(t("delAmt"), money(del)) : ""}
