@@ -201,17 +201,22 @@ function mapHeaders(rows, anchor, defs, spec, maxRows=12){
   return m;
 }
 function mapAcs(rows){
+  /* 1) header names where they came through; 2) otherwise (or if they don't check out) work the layout out from the data itself */
   const m = mapHeaders(rows, /^mpl\.?\s*no\.?$/, DEF_ACS, {
     invDate:[/^invoice date$/,0], mpl:[/^mpl\.?\s*no\.?$/,0], name:[/^name$/,0], contact:[/^contact/,0],
-    paid:[/^total paid/,0], invoice:[/^invoice value/,0], balance:[/^balance due/,0], dpAmt:[/^down payment/,0], nIns:[/^no of ins/,0],
-    lateStatus:[/^status$/,1], insAmt:[/^instalment amt/,1], overdue:[/^payments overdue/,1], lateChg:[/^late charges\s*\(rs/,1],
-    totalOver:[/^total over\s*due/,1], latePaid:[/^late charges paid/,1], discount:[/^late charges discount/,1],
-    pendingLate:[/^pending late/,1], received:[/^total payments received/,1], finalOut:[/^final outstanding/,1] });
-  /* down payment date sits beside its amount; instalments: Instalment 1..6, amount then date */
-  m.dpDate = m.dpAmt + 1;
-  let hr = -1; for (let i = 0; i < Math.min(rows.length, 12) && hr < 0; i++) if (rows[i].some(c => /^mpl\.?\s*no\.?$/.test(norm(c)))) hr = i;
-  m.pay = DEF_ACS.pay.map(p => p.slice());
-  if (hr > -1) for (let k = 1; k <= 6; k++){ const c = (rows[hr] || []).findIndex(x => norm(x) === "instalment " + k); if (c > -1) m.pay[k-1] = [c, c+1]; }
+    paid:[/^total paid/,0], lateStatus:[/^status$/,1] });
+  const data = rows.filter(r => /^MPL/i.test(clean(r[m.mpl])));
+  /* Total Paid column = the one followed by Invoice Value and Balance Due, where Balance = Invoice - Paid */
+  const rel = c => { let ok = 0; for (const r of data){ const a = toNum(r[c]), b = toNum(r[c+1]), d = toNum(r[c+2]);
+    if (a != null && b != null && d != null && b > 0 && Math.abs(b - a - d) < 1.5) ok++; } return ok; };
+  if (rel(m.paid) < 3){ let best = -1, bc = m.paid; for (let c = 5; c <= 16; c++){ const k = rel(c); if (k > best){ best = k; bc = c; } } if (best >= 3) m.paid = bc; }
+  m.invoice = m.paid + 1; m.balance = m.paid + 2; m.dpAmt = m.paid + 3; m.dpDate = m.paid + 4; m.nIns = m.paid + 17;
+  m.pay = [0,1,2,3,4,5].map(k => [m.paid + 5 + 2*k, m.paid + 6 + 2*k]);
+  /* Late-charge block starts at the Status column (the one holding "OK" / "CHECK: ..." on most rows) */
+  const okCount = c => data.filter(r => /^ok$/i.test(clean(r[c]))).length;
+  if (okCount(m.lateStatus) < 3){ let best = 0, bc = m.lateStatus; for (let c = m.paid + 18; c <= m.paid + 45; c++){ const k = okCount(c); if (k > best){ best = k; bc = c; } } if (best >= 3) m.lateStatus = bc; }
+  const st = m.lateStatus;
+  Object.assign(m, { insAmt:st+1, overdue:st+2, lateChg:st+3, totalOver:st+4, latePaid:st+5, discount:st+6, pendingLate:st+7, received:st+8, finalOut:st+9 });
   return m;
 }
 function mapSlr(rows){
@@ -664,6 +669,11 @@ function render(r){
   prn.disabled = shr.disabled = false;
   $("refresh").onclick = () => search(mplIn.value, mobIn.value, true);
   $("clear").onclick = () => { history.replaceState(null, "", location.href.split("#")[0]); LAST = null; show(vStart); mplIn.value = mobIn.value = ""; mplIn.focus(); };
+  if (/(^|&)debug=1/.test(location.hash.slice(1))){   /* diagnostics: add &debug=1 to the page link */
+    const L = i => { let x = "", n = i + 1; while (n > 0){ const k = (n - 1) % 26; x = String.fromCharCode(65 + k) + x; n = Math.floor((n - 1) / 26); } return x; };
+    const info = Object.entries(C).filter(([k]) => k !== "pay").map(([k, v]) => k + "=" + L(v) + " [" + clean(r[v]).slice(0, 18) + "]").join("\n");
+    out.insertAdjacentHTML("beforeend", `<pre style="font-size:11px;white-space:pre-wrap;background:#fff;border:1px solid #ccc;padding:8px;margin:12px 0">rows=${ROWS.length}\n${esc(info)}</pre>`);
+  }
 }
 
 /* ---------- views (re-drawn when the language changes) ---------- */
