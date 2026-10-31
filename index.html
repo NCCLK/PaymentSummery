@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="color-scheme" content="light">
-<meta name="theme-color" content="#0057b8">
+<meta name="theme-color" content="#0072ad">
 <title>NCC – Customer Account Summary</title>
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Noto+Sans+Sinhala:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--paper:#f3f8fc;--card:#fff;--ink:#14263a;--muted:#5a6b7c;--line:#d5e3ef;--sky:#00a3e8;--blue:#0057b8;--navy:#0b3a7a;--soft:#eaf5fc;--late:#c62828;--late-soft:#fdecea;--ok:#1b7a43;--ok-soft:#e6f4ec;--warn:#8a5a00;--warn-soft:#fdf1d8;--grad:linear-gradient(90deg,var(--sky),var(--blue));--sans:"Public Sans","Noto Sans Sinhala",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+:root{--paper:#f3f8fc;--card:#fff;--ink:#14263a;--muted:#5a6b7c;--line:#d5e3ef;--sky:#039feb;--blue:#0072ad;--navy:#005a8c;--soft:#eaf5fc;--late:#c62828;--late-soft:#fdecea;--ok:#1b7a43;--ok-soft:#e6f4ec;--warn:#8a5a00;--warn-soft:#fdf1d8;--grad:var(--blue);--sans:"Public Sans","Noto Sans Sinhala",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.5 var(--sans);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -38,7 +38,7 @@ html[lang=si] .sec,html[lang=si] .ttl{letter-spacing:0}
 .search input:focus-visible,.btns button:focus-visible{outline:3px solid #ffd54a;outline-offset:1px}
 @media (min-width:560px){.search{grid-template-columns:1fr 1fr}.btns{grid-column:1/-1}}
 .btns{display:flex;gap:8px}
-.btns button{height:48px;border-radius:10px;border:0;font-weight:700;cursor:pointer;flex:1;background:#fff;color:var(--blue)}
+.btns button{height:48px;border-radius:10px;border:2px solid #fff;font-weight:700;cursor:pointer;flex:1;background:#fff;color:var(--navy)}
 .btns #go{flex:2;background:var(--navy);color:#fff}
 .btns button:disabled{opacity:.55;cursor:default}
 main{max-width:760px;margin:0 auto;padding:16px 16px 40px}
@@ -164,7 +164,7 @@ const I18N = {
   eOtherH:"Something went wrong", eOtherP:"Please try again.",
   asof:d=>`Late Payment calculated up to ${d}`,
   acctTitle:"CUSTOMER ACCOUNT SUMMARY", instTitle:"MONTHLY INSTALMENT SUMMARY", lateTitle:"OVERDUE & LATE CHARGES SUMMARY",
-  mplNo:"MPL No.", name:"Name", invoiceVal:"Invoice Value (Rs.)", totalPaid:"Total Paid (Rs.)", balDue:"Balance Due (Rs.)", excess:"excess paid",
+  mplNo:"MPL No.", name:"Name", invoiceVal:"Invoice Value (Rs.)", invDate:"Invoice Date", totalPaid:"Total Paid (Rs.)", balDue:"Balance Due (Rs.)", excess:"excess paid",
   dpAmt:"Down Payment (Rs.)", dpDate:"Down Payment Date", nIns:"No. of Instalments", insAmt:"Instalment Amt. (Rs.)",
   prod:"Product Type & Category", wFull:"Full Warranty Until", wSvc:"Service Warranty Until", expired:"expired", noWarranty:"No warranty", laptop:"Laptop",
   due:"Due (Rs.)", paidH:"Paid (Rs.)", balH:"Balance (Rs.)", instN:n=>`Instalment ${n}`, noIns:"No instalments recorded for this account.",
@@ -188,7 +188,7 @@ const I18N = {
   eOtherH:"යම් දෝෂයක් සිදු විය", eOtherP:"කරුණාකර නැවත උත්සාහ කරන්න.",
   asof:d=>`ප්‍රමාද ගෙවීම් ගණනය කර ඇත්තේ ${d} දක්වාය`,
   acctTitle:"පාරිභෝගික ගිණුම් සාරාංශය", instTitle:"මාසික වාරික සාරාංශය", lateTitle:"කල් පසු වූ ගෙවීම් සහ ප්‍රමාද ගාස්තු සාරාංශය",
-  mplNo:"MPL අංකය", name:"නම", invoiceVal:"ඉන්වොයිස් වටිනාකම (රු.)", totalPaid:"මුළු ගෙවූ මුදල (රු.)", balDue:"ගෙවිය යුතු ශේෂය (රු.)", excess:"අතිරේකව ගෙවා ඇත",
+  mplNo:"MPL අංකය", name:"නම", invoiceVal:"ඉන්වොයිස් වටිනාකම (රු.)", invDate:"ඉන්වොයිස් දිනය", totalPaid:"මුළු ගෙවූ මුදල (රු.)", balDue:"ගෙවිය යුතු ශේෂය (රු.)", excess:"අතිරේකව ගෙවා ඇත",
   dpAmt:"මූලික ගෙවීම (රු.)", dpDate:"මූලික ගෙවීමේ දිනය", nIns:"වාරික ගණන", insAmt:"වාරික මුදල (රු.)",
   prod:"නිෂ්පාදන වර්ගය සහ ප්‍රවර්ගය", wFull:"සම්පූර්ණ වගකීම අවසන් වන දිනය", wSvc:"සේවා වගකීම අවසන් වන දිනය", expired:"කල් ඉකුත් වී ඇත", noWarranty:"වගකීමක් නැත", laptop:"ලැප්ටොප්",
   due:"ගෙවිය යුතු (රු.)", paidH:"ගෙවූ (රු.)", balH:"ශේෂය (රු.)", instN:n=>`වාරිකය ${n}`, noIns:"මෙම ගිණුම සඳහා වාරික වාර්තා කර නැත.",
@@ -293,7 +293,7 @@ async function load(force){
       if (clean(r[0]) && !isNaN(num) && clean(r[6])) CAT[key(r[0]) + num] = clean(r[6]).toUpperCase();
       if (clean(r[3]) && clean(r[6])) CAT[key(r[3])] = CAT[key(r[3])] || clean(r[6]).toUpperCase();   /* fallback: serial no. */
     }
-    for (const r of slr) if (/^MPL/i.test(clean(r[0]))) INFO[key(r[0])] = {batch:key(r[3]), serial:key(r[5])};
+    for (const r of slr) if (/^MPL/i.test(clean(r[0]))) INFO[key(r[0])] = {batch:key(r[3]), serial:key(r[5]), inv:clean(r[16])};
   } catch(e){}
 }
 
@@ -306,9 +306,16 @@ function normalizeMobile(v){
   return n.length === 9 ? n : "";
 }
 function mobileNumbers(v){
-  const text = String(v ?? "");
-  const parts = text.match(/\+?94[\s().-]*\d[\d\s().-]{7,}\d|0\d[\d\s().-]{7,}\d|\b\d{2}[\s.-]?\d{3}[\s.-]?\d{4}\b|\b\d{9}\b/g) || [];
-  const set = new Set(parts.map(normalizeMobile).filter(Boolean));
+  /* one contact cell may hold several numbers: "0771832409 / 0771756570", "077 123 4567, 071..." etc. */
+  const text = String(v ?? ""), set = new Set();
+  const add = n => { n = normalizeMobile(n); if (n) set.add(n); };
+  const scan = d => {   /* walk a run of digits, cutting valid numbers off the front */
+    while (d.length >= 9){
+      const len = (d.startsWith("94") && d.length >= 11) ? 11 : (d[0] === "0" && d.length >= 10) ? 10 : 9;
+      add(d.slice(0, len)); d = d.slice(len);
+    }
+  };
+  text.split(/[\/,;|&\n\r]+|\s+(?:and|or)\s+|\s+[-–—]\s+|\s{2,}/i).forEach(p => { add(p); scan(digits(p)); });
   const whole = normalizeMobile(text.replace(/,/g, "")); if (whole && !/[A-Za-z]/.test(text)) set.add(whole);
   return [...set];
 }
@@ -322,11 +329,12 @@ function productText(r){
   const i = INFO[key(r[C.mpl])]; if (!i) return "—";
   const c = CAT[i.batch] || CAT[i.serial]; return c ? t("laptop") + " / " + esc(titleCase(c)) : t("laptop");
 }
+const invDateOf = r => parseDate(r[C.invDate]) || parseDate((INFO[key(r[C.mpl])] || {}).inv);
 function warranty(r, idx){
   const i = INFO[key(r[C.mpl])], c = i && (CAT[i.batch] || CAT[i.serial]);
   if (!c || !(c in CONFIG.WARRANTY)) return "—";
   const m = CONFIG.WARRANTY[c]; if (!m) return t("noWarranty");
-  const d = parseDate(r[C.invDate]); if (!d) return "—";
+  const d = invDateOf(r); if (!d) return "—";
   const end = addMonths(d, m[idx]), tdy = new Date(); tdy.setHours(0,0,0,0);
   return fmtDate(end) + (end < tdy ? ` <span class="sub">${t("expired")}</span>` : "");
 }
@@ -343,6 +351,7 @@ function render(r){
     ${kv(t("name"), esc(g(C.name)) || "—", "", "name")}
     <div class="sec">${t("acctTitle")}</div>
     ${kv(t("invoiceVal"), money(invoice))}
+    ${kv(t("invDate"), (invDateOf(r) ? esc(fmtDate(invDateOf(r))) : "—"))}
     ${kv(t("totalPaid"), money(paid))}
     ${kv(t("balDue"), money(bal) + (bal < 0 ? ` <span class="sub">${t("excess")}</span>` : ""), bal > 0 ? "red" : "")}
     ${kv(t("dpAmt"), money(dpAmt))}
