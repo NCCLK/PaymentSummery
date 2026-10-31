@@ -131,22 +131,49 @@ const CONFIG = {
   ACS_GID: "876091980",
   TABS: { acs: "MPL-ACS", slr: "MPL-SLR", str: "MPL-STR" },
   PUBLISHED: { acs: "", slr: "", str: "" },
+  GIDS: { slr: "", str: "" },   /* optional: tab gid numbers (from the sheet URL) to read raw text instead of guessing types */
   /* months from invoice date: [full (hardware) warranty, service warranty]. null = no warranty */
   WARRANTY: { STANDARD:[3,6], SUPER:[3,6], VALUE:[1,3], BUDGET:null }
 };
-/* Column positions in MPL-ACS (A = 0). Late-charge block = columns AI..AR */
-const C = { invDate:2, mpl:4, name:5, contact:6, contact2:7, paid:8, invoice:9, balance:10, dpAmt:11, dpDate:12,
-  pay:[[13,14],[15,16],[17,18],[19,20],[21,22],[23,24]], nIns:25,
-  lateStatus:34,   /* AI  Status */
-  insAmt:35,       /* AJ  Instalment Amt. (Rs.) */
-  overdue:36,      /* AK  Payments Overdue (Rs.) */
-  lateChg:37,      /* AL  Late Charges (Rs.) */
-  totalOver:38,    /* AM  Total Over Due (Rs.) */
-  latePaid:39,     /* AN  Late Charges Paid (Rs.) */
-  discount:40,     /* AO  Late Charges Discount */
-  pendingLate:41,  /* AP  Pending Late Charges (Rs.) */
-  received:42,     /* AQ  Total Payments Received (Rs.) */
-  finalOut:43 };   /* AR  Final Outstanding (Rs.) */
+/* Default column positions (A = 0). The page first looks the columns up by their header names,
+   so inserting a column does not break it; these defaults are only used when a header is not found.
+   MPL-ACS now: contact = G, extra columns H-I, Total Paid = J ... Late block AJ..AS */
+const DEF_ACS = { invDate:2, mpl:4, name:5, contact:6, paid:9, invoice:10, balance:11, dpAmt:12, dpDate:13,
+  pay:[[14,15],[16,17],[18,19],[20,21],[22,23],[24,25]], nIns:26,
+  lateStatus:35, insAmt:36, overdue:37, lateChg:38, totalOver:39, latePaid:40, discount:41, pendingLate:42, received:43, finalOut:44 };
+const DEF_SLR = { mpl:0, batch:3, serial:5, model:6, spec:7, category:8, accessories:9, name:10, contact:11,
+  service:12, delivery:13, invoiceAmt:14, invDate:16, issued:17 };
+let C = {...DEF_ACS}, S = {...DEF_SLR};
+const norm = x => String(x ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+function mapHeaders(rows, anchor, defs, spec, maxRows=12){
+  /* spec: field -> [regex, rowOffset(0 = header row, 1 = row below)] ; returns merged map */
+  let hr = -1;
+  for (let i = 0; i < Math.min(rows.length, maxRows) && hr < 0; i++) if (rows[i].some(c => anchor.test(norm(c)))) hr = i;
+  const m = {...defs}; if (hr < 0) return m;
+  const colOf = (re, off, from=0) => { const row = rows[hr + off] || []; for (let c = from; c < row.length; c++) if (re.test(norm(row[c]))) return c; return -1; };
+  for (const [f, [re, off]] of Object.entries(spec)){ const c = colOf(re, off); if (c > -1) m[f] = c; }
+  return m;
+}
+function mapAcs(rows){
+  const m = mapHeaders(rows, /^mpl\.?\s*no\.?$/, DEF_ACS, {
+    invDate:[/^invoice date$/,0], mpl:[/^mpl\.?\s*no\.?$/,0], name:[/^name$/,0], contact:[/^contact/,0],
+    paid:[/^total paid/,0], invoice:[/^invoice value/,0], balance:[/^balance due/,0], dpAmt:[/^down payment/,0], nIns:[/^no of ins/,0],
+    lateStatus:[/^status$/,1], insAmt:[/^instalment amt/,1], overdue:[/^payments overdue/,1], lateChg:[/^late charges\s*\(rs/,1],
+    totalOver:[/^total over\s*due/,1], latePaid:[/^late charges paid/,1], discount:[/^late charges discount/,1],
+    pendingLate:[/^pending late/,1], received:[/^total payments received/,1], finalOut:[/^final outstanding/,1] });
+  /* down payment date sits beside its amount; instalments: Instalment 1..6, amount then date */
+  m.dpDate = m.dpAmt + 1;
+  let hr = -1; for (let i = 0; i < Math.min(rows.length, 12) && hr < 0; i++) if (rows[i].some(c => /^mpl\.?\s*no\.?$/.test(norm(c)))) hr = i;
+  m.pay = DEF_ACS.pay.map(p => p.slice());
+  if (hr > -1) for (let k = 1; k <= 6; k++){ const c = (rows[hr] || []).findIndex(x => norm(x) === "instalment " + k); if (c > -1) m.pay[k-1] = [c, c+1]; }
+  return m;
+}
+function mapSlr(rows){
+  return mapHeaders(rows, /^mpl\w*\s*ref/, DEF_SLR, {
+    mpl:[/^mpl\w*\s*ref/,0], batch:[/^batch no/,0], serial:[/^serial no/,0], model:[/^model$/,0], spec:[/^specification$/,0],
+    category:[/^category$/,0], accessories:[/^accessories$/,0], name:[/^customer name/,0], contact:[/^cont\w*act/,0],
+    service:[/^service amt/,0], delivery:[/^delivery amt/,0], invoiceAmt:[/^invoice amt/,0], invDate:[/^invoice date$/,0], issued:[/^issued date$/,0] });
+}
 
 /* ============ LANGUAGE ============ */
 const SI_MON = ["ජන","පෙබ","මාර්","අප්‍රේ","මැයි","ජූනි","ජූලි","අගෝ","සැප්","ඔක්","නොවැ","දෙසැ"];
@@ -173,6 +200,9 @@ const I18N = {
   lOverdue:"Payments Overdue (Rs.)", lCharges:"Late Charges (Rs.)", lTotal:"Total Over Due (Rs.)", lPaid:"Late Charges Paid (Rs.)",
   lDisc:"Late Charges Discount (Rs.)", lPending:"Pending Late Charges (Rs.)", lRecv:"Total Payments Received (Rs.)", lFinal:"Final Outstanding (Rs.)",
   lateNA:"Overdue and late charge details are not available for this account yet. Please contact us for a full statement.",
+  invTitle:"DIGITAL INVOICE", itemTitle:"ITEM DETAILS", amtTitle:"INVOICE AMOUNT", wTitle:"WARRANTY DETAILS",
+  saleType:"Sale Type", cashSale:"Cash Sale", model:"Model", spec:"Specification", serial:"Serial No.", accessories:"Accessories",
+  svcAmt:"Service Amt. (Rs.)", delAmt:"Delivery Amt. (Rs.)", invAmt:"Invoice Amount (Rs.)", wStart:"Warranty Starts (Invoice Date)",
   printed:"Printed", refresh:"Refresh from sheet", clear:"New search", copied:"Link copied", copyPrompt:"Copy this link", rs:"Rs."
  },
  si:{
@@ -197,6 +227,9 @@ const I18N = {
   lOverdue:"කල් පසු වූ ගෙවීම් (රු.)", lCharges:"ප්‍රමාද ගාස්තු (රු.)", lTotal:"මුළු කල් පසු මුදල (රු.)", lPaid:"ගෙවූ ප්‍රමාද ගාස්තු (රු.)",
   lDisc:"ප්‍රමාද ගාස්තු වට්ටම (රු.)", lPending:"ගෙවිය යුතු ප්‍රමාද ගාස්තු (රු.)", lRecv:"ලැබුණු මුළු ගෙවීම් (රු.)", lFinal:"අවසාන හිඟ මුදල (රු.)",
   lateNA:"මෙම ගිණුම සඳහා කල් පසු වූ ගෙවීම් සහ ප්‍රමාද ගාස්තු විස්තර තවම නොමැත. සම්පූර්ණ ප්‍රකාශයක් සඳහා කරුණාකර අප අමතන්න.",
+  invTitle:"ඩිජිටල් ඉන්වොයිසිය", itemTitle:"භාණ්ඩ විස්තර", amtTitle:"ඉන්වොයිස් මුදල", wTitle:"වගකීම් විස්තර",
+  saleType:"විකුණුම් වර්ගය", cashSale:"මුදල් විකුණුම", model:"මාදිලිය", spec:"පිරිවිතර", serial:"අනුක්‍රමික අංකය", accessories:"උපාංග",
+  svcAmt:"සේවා ගාස්තුව (රු.)", delAmt:"බෙදාහැරීමේ ගාස්තුව (රු.)", invAmt:"ඉන්වොයිස් මුදල (රු.)", wStart:"වගකීම ආරම්භය (ඉන්වොයිස් දිනය)",
   printed:"මුද්‍රණය කළ දිනය", refresh:"පත්‍රිකාවෙන් යළි පූරණය කරන්න", clear:"නව සෙවුමක්", copied:"සබැඳිය පිටපත් කරන ලදී", copyPrompt:"මෙම සබැඳිය පිටපත් කරන්න", rs:"රු."
  }
 };
@@ -279,25 +312,33 @@ async function getAcs(){
   }
   throw err;
 }
-const getCsv = k => CONFIG.PUBLISHED[k] ? fetchCsv(CONFIG.PUBLISHED[k]) : fetchCsv(base() + "&sheet=" + encodeURIComponent(CONFIG.TABS[k]));
+async function getCsv(k){
+  if (CONFIG.PUBLISHED[k]) return fetchCsv(CONFIG.PUBLISHED[k]);
+  const g = CONFIG.GIDS[k];
+  if (g){ try { const rows = await fetchCsv("https://docs.google.com/spreadsheets/d/" + encodeURIComponent(CONFIG.SHEET_ID) + "/export?format=csv&gid=" + encodeURIComponent(g)); if (rows.length) return rows; } catch(e){} }
+  return fetchCsv(base() + "&sheet=" + encodeURIComponent(CONFIG.TABS[k]));
+}
 
-let ROWS = null, ASOF = "", INFO = {}, CAT = {};
+let ROWS = null, SLR = null, EXTRA_ERR = null, ASOF = "", INFO = {}, CAT = {};
 async function load(force){
   if (ROWS && !force) return;
+  const extra = Promise.all([getCsv("slr"), getCsv("str")]);   /* fetched alongside the account tab */
+  extra.catch(() => {});
   const acs = await getAcs();
-  ROWS = acs; ASOF = "";
+  C = mapAcs(acs); ROWS = acs; ASOF = "";
   for (const r of acs){ const i = r.findIndex(c => /(late payment|interest) calculated up to/i.test(c));
     if (i > -1 && clean(r[i+1])){ ASOF = clean(r[i+1]); break; } }
-  INFO = {}; CAT = {};
-  try {   /* product category is optional: never block the summary */
-    const [slr, str] = await Promise.all([getCsv("slr"), getCsv("str")]);
+  INFO = {}; CAT = {}; SLR = null; EXTRA_ERR = null;
+  try {   /* sales + stock tabs: needed for warranty category and for cash-sale invoices */
+    const [slr, str] = await extra;
+    S = mapSlr(slr); SLR = slr;
     for (const r of str){   /* STR ref (A) + number (B), e.g. WLC + 1004 = WLC1004 */
       const num = parseInt(clean(r[1]).replace(/,/g, ""), 10);
       if (clean(r[0]) && !isNaN(num) && clean(r[6])) CAT[key(r[0]) + num] = clean(r[6]).toUpperCase();
       if (clean(r[3]) && clean(r[6])) CAT[key(r[3])] = CAT[key(r[3])] || clean(r[6]).toUpperCase();   /* fallback: serial no. */
     }
-    for (const r of slr) if (/^MPL/i.test(clean(r[0]))) INFO[key(r[0])] = {batch:key(r[3]), serial:key(r[5]), inv:clean(r[16])};
-  } catch(e){}
+    for (const r of slr) if (/^MPL/i.test(clean(r[S.mpl]))) INFO[key(r[S.mpl])] = {batch:key(r[S.batch]), serial:key(r[S.serial]), inv:clean(r[S.invDate]) || clean(r[S.issued])};
+  } catch(e){ EXTRA_ERR = e; }
 }
 
 /* ---------- mobile numbers ---------- */
@@ -322,8 +363,13 @@ function mobileNumbers(v){
   const whole = normalizeMobile(text.replace(/,/g, "")); if (whole && !/[A-Za-z]/.test(text)) set.add(whole);
   return [...set];
 }
+const acsContact = r => r.slice(C.contact, Math.max(C.contact + 1, C.paid)).join(" / ");   /* contact + any extra columns before Total Paid */
+const slrContact = r => clean(r[S.contact]) + " / " + clean(r[S.name]);
 const find = (mpl, mob) => { const a = key(mpl), b = normalizeMobile(mob);
-  return (a && b && ROWS.find(r => key(r[C.mpl]) === a && mobileNumbers(r[C.contact] + " / " + clean(r[C.contact2])).includes(b))) || null; };
+  return (a && b && ROWS.find(r => key(r[C.mpl]) === a && mobileNumbers(acsContact(r)).includes(b))) || null; };
+const inAcs = mpl => { const a = key(mpl); return !!a && ROWS.some(r => key(r[C.mpl]) === a); };
+const findSlr = (mpl, mob) => { const a = key(mpl), b = normalizeMobile(mob);
+  return (a && b && SLR && SLR.find(r => key(r[S.mpl]) === a && mobileNumbers(slrContact(r)).includes(b))) || null; };
 
 /* ---------- render ---------- */
 const kv = (k, v, cls="", row="") => `<div class="kv ${row}"><div class="k">${k}</div><div class="v num ${cls}">${v}</div></div>`;
@@ -333,13 +379,50 @@ function productText(r){
   const c = CAT[i.batch] || CAT[i.serial]; return c ? t("laptop") + " / " + esc(titleCase(c)) : t("laptop");
 }
 const invDateOf = r => parseDate(r[C.invDate]) || parseDate((INFO[key(r[C.mpl])] || {}).inv);
-function warranty(r, idx){
-  const i = INFO[key(r[C.mpl])], c = i && (CAT[i.batch] || CAT[i.serial]);
+function warrantyFor(mplKey, d, idx){   /* warranty always counts from the invoice date */
+  const i = INFO[mplKey], c = i && (CAT[i.batch] || CAT[i.serial]);
   if (!c || !(c in CONFIG.WARRANTY)) return "—";
   const m = CONFIG.WARRANTY[c]; if (!m) return t("noWarranty");
-  const d = invDateOf(r); if (!d) return "—";
+  if (!d) return "—";
   const end = addMonths(d, m[idx]), tdy = new Date(); tdy.setHours(0,0,0,0);
   return fmtDate(end) + (end < tdy ? ` <span class="sub">${t("expired")}</span>` : "");
+}
+const warranty = (r, idx) => warrantyFor(key(r[C.mpl]), invDateOf(r), idx);
+
+/* digital invoice for cash-sale customers (found in MPL-SLR only) */
+function renderInvoice(r){
+  const g = i => clean(r[i]);
+  const k = key(g(S.mpl)), d = parseDate(g(S.invDate)) || parseDate(g(S.issued));
+  let name = g(S.name) || g(S.contact).replace(/\(?[\d\s+().\/-]{9,}\)?/g, " ").replace(/\s+/g, " ").trim();
+  const inv = toNum(g(S.invoiceAmt)), svc = toNum(g(S.service)), del = toNum(g(S.delivery));
+  const opt = (label, v) => v ? kv(label, esc(v)) : "";
+  const info = INFO[k], cat = info && (CAT[info.batch] || CAT[info.serial]);
+  const head = `<div class="sheet">
+    ${kv(t("mplNo"), esc(g(S.mpl)))}
+    ${kv(t("name"), esc(name) || "—", "", "name")}
+    <div class="sec">${t("invTitle")}</div>
+    ${kv(t("invDate"), d ? esc(fmtDate(d)) : "—")}
+    ${kv(t("saleType"), t("cashSale"))}
+  </div>`;
+  const items = `<div class="sheet"><div class="sec">${t("itemTitle")}</div>
+    ${kv(t("prod"), t("laptop") + (cat ? " / " + esc(titleCase(cat)) : ""))}
+    ${opt(t("model"), g(S.model))}${opt(t("spec"), g(S.spec))}${opt(t("serial"), g(S.serial))}${opt(t("accessories"), g(S.accessories))}
+  </div>`;
+  const amt = `<div class="sheet"><div class="sec">${t("amtTitle")}</div>
+    ${svc > 0 ? kv(t("svcAmt"), money(svc)) : ""}${del > 0 ? kv(t("delAmt"), money(del)) : ""}
+    ${kv(t("invAmt"), money(inv), "", "strong okrow")}
+  </div>`;
+  const war = `<div class="sheet"><div class="sec">${t("wTitle")}</div>
+    ${kv(t("wStart"), d ? esc(fmtDate(d)) : "—")}
+    ${kv(t("wFull"), warrantyFor(k, d, 0))}
+    ${kv(t("wSvc"), warrantyFor(k, d, 1))}
+  </div>`;
+  out.innerHTML = `<div class="ph"><img src="logo.png" alt="NCC"><div><h2>${t("invTitle")}</h2><p>${esc(g(S.mpl))} · ${esc(name)} · ${t("printed")} ${esc(fmtDate(new Date()))} · v${CONFIG.VERSION}</p></div></div>
+    ${head}${items}${amt}${war}
+    <footer><button type="button" id="refresh">${t("refresh")}</button><button type="button" id="clear">${t("clear")}</button></footer>`;
+  prn.disabled = shr.disabled = false;
+  $("refresh").onclick = () => search(mplIn.value, mobIn.value, true);
+  $("clear").onclick = () => { history.replaceState(null, "", location.href.split("#")[0]); LAST = null; show(vStart); mplIn.value = mobIn.value = ""; mplIn.focus(); };
 }
 
 function render(r){
@@ -476,8 +559,13 @@ async function search(mplV, mobV, force){
   btn.disabled = true; btn.textContent = t("loading");
   try {
     await load(force);
-    const r = find(mplV, mobV);
-    if (r){ LAST = {mpl:clean(mplV), mob:clean(mobV)}; show(() => render(r)); syncHash(); window.scrollTo({top:0}); }
+    const r = find(mplV, mobV);   /* 1st: instalment customers in MPL-ACS */
+    let slr = null;
+    if (!r && !inAcs(mplV)){      /* 2nd: cash-sale customers in MPL-SLR */
+      if (!SLR) throw (EXTRA_ERR || new Error("access"));
+      slr = findSlr(mplV, mobV);
+    }
+    if (r || slr){ LAST = {mpl:clean(mplV), mob:clean(mobV)}; show(() => r ? render(r) : renderInvoice(slr)); syncHash(); window.scrollTo({top:0}); }
     else { LAST = null; show(vNone); }
   } catch(e){ LAST = null; show(vError(e.message)); }
   finally { btn.disabled = false; btn.textContent = t("search"); }
