@@ -252,7 +252,7 @@ const I18N = {
   cpu:"Processor", gen:"Generation", ram:"RAM", storage:"Storage", screen:"Display Size",
   cpuV:n=>`Intel Core i${n}`, genV:n=>{const o=n%100,x=(o>=11&&o<=13)?"th":({1:"st",2:"nd",3:"rd"}[n%10]||"th");return `${n}${x} Generation`;}, gb:n=>`${n} GB`, tb:n=>`${n} TB`, inch:n=>`${n} inch`,
   saleType:"Sale Type", cashSale:"Cash Sale", model:"Model", spec:"Specification", serial:"Serial No.", accessories:"Accessories",
-  svcAmt:"Service Amt. (Rs.)", delAmt:"Delivery Amt. (Rs.)", invAmt:"Invoice Amount (Rs.)", wStart:"Warranty Starts (Invoice Date)",
+  svcAmt:"Service Amt. (Rs.)", delAmt:"Delivery Amt. (Rs.)", invAmt:"Invoice Amount (Rs.)", totAmt:"Total (Rs.)", wStart:"Warranty Starts (Invoice Date)",
   printed:"Printed", refresh:"Refresh from sheet", clear:"New search", copied:"Link copied", copyPrompt:"Copy this link", rs:"Rs."
  },
  si:{
@@ -281,7 +281,7 @@ const I18N = {
   cpu:"ප්‍රොසෙසරය", gen:"පරම්පරාව", ram:"RAM මතකය", storage:"ගබඩා ධාරිතාව", screen:"තිරයේ ප්‍රමාණය",
   cpuV:n=>`Intel Core i${n}`, genV:n=>`${n} වන පරම්පරාව`, gb:n=>`${n} GB`, tb:n=>`${n} TB`, inch:n=>`අඟල් ${n}`,
   saleType:"විකුණුම් වර්ගය", cashSale:"මුදල් විකුණුම", model:"මාදිලිය", spec:"පිරිවිතර", serial:"අනුක්‍රමික අංකය", accessories:"උපාංග",
-  svcAmt:"සේවා ගාස්තුව (රු.)", delAmt:"බෙදාහැරීමේ ගාස්තුව (රු.)", invAmt:"ඉන්වොයිස් මුදල (රු.)", wStart:"වගකීම ආරම්භය (ඉන්වොයිස් දිනය)",
+  svcAmt:"සේවා ගාස්තුව (රු.)", delAmt:"බෙදාහැරීමේ ගාස්තුව (රු.)", invAmt:"ඉන්වොයිස් මුදල (රු.)", totAmt:"මුළු මුදල (රු.)", wStart:"වගකීම ආරම්භය (ඉන්වොයිස් දිනය)",
   printed:"මුද්‍රණය කළ දිනය", refresh:"පත්‍රිකාවෙන් යළි පූරණය කරන්න", clear:"නව සෙවුමක්", copied:"සබැඳිය පිටපත් කරන ලදී", copyPrompt:"මෙම සබැඳිය පිටපත් කරන්න", rs:"රු."
  }
 };
@@ -509,7 +509,8 @@ function printInvoice(r, o){
   const acc = accList(g(S.accessories), g(S.spec));
   const parts = [...new Set([...specEn(g(S.spec)), g(S.os), ...acc].filter(Boolean))];
   const ncc = [g(S.batch), g(S.serial)].filter(Boolean).join(" | ");
-  const amt = o.inv, words = amt == null ? "" : numWords(amt) + " Rupees" + (Math.round((amt % 1) * 100) ? " and " + numWords(Math.round((amt % 1) * 100)) + " Cents" : "") + " only";
+  const amt = o.inv, del = o.del || 0, grand = amt == null ? null : amt + del;
+  const words = grand == null ? "" : numWords(grand) + " Rupees" + (Math.round((grand % 1) * 100) ? " and " + numWords(Math.round((grand % 1) * 100)) + " Cents" : "") + " only";
   return `<section class="pinv" aria-hidden="true">
     <div class="pi-top"><img src="logo.png" alt="NCC">
       <div class="pi-shop"><div class="pi-shopname">${esc(shop.name)}</div><div>${esc(shop.address)}</div><div>Phone no.: ${esc(shop.phone)} Email: ${esc(shop.email)}</div></div></div>
@@ -533,8 +534,8 @@ function printInvoice(r, o){
       </div>
       <div>
         <div class="pi-bar">Amounts</div>
-        <table class="pi-amt"><tr><td>Sub Total</td><td>${rs(amt)}</td></tr><tr class="b"><td>Total</td><td>${rs(amt)}</td></tr>
-          <tr><td>Received</td><td>${rs(amt)}</td></tr><tr><td>Balance</td><td>${rs(0)}</td></tr></table>
+        <table class="pi-amt"><tr><td>Sub Total</td><td>${rs(amt)}</td></tr>${del > 0 ? `<tr><td>Delivery Charge</td><td>${rs(del)}</td></tr>` : ""}<tr class="b"><td>Total</td><td>${rs(grand)}</td></tr>
+          <tr><td>Received</td><td>${rs(grand)}</td></tr><tr><td>Balance</td><td>${rs(0)}</td></tr></table>
       </div>
     </div>
     <div class="pi-sig">
@@ -565,8 +566,9 @@ function renderInvoice(r){
     ${opt(t("model"), g(S.model))}${specRows(g(S.spec)) || opt(t("spec"), g(S.spec))}${opt(t("serial"), g(S.serial))}${opt(t("accessories"), accList(g(S.accessories), g(S.spec)).join(", "))}
   </div>`;
   const amt = `<div class="sheet"><div class="sec">${t("amtTitle")}</div>
-    ${svc > 0 ? kv(t("svcAmt"), money(svc)) : ""}${del > 0 ? kv(t("delAmt"), money(del)) : ""}
-    ${kv(t("invAmt"), money(inv), "", "strong okrow")}
+    ${kv(t("invAmt"), money(inv))}
+    ${del > 0 ? kv(t("delAmt"), money(del)) : ""}
+    ${kv(t("totAmt"), money(inv == null ? null : inv + (del > 0 ? del : 0)), "", "strong okrow")}
   </div>`;
   const war = `<div class="sheet"><div class="sec">${t("wTitle")}</div>
     ${kv(t("wStart"), d ? esc(fmtDate(d)) : "—")}
@@ -574,7 +576,7 @@ function renderInvoice(r){
     ${kv(t("wSvc"), warrantyFor(k, d, 1))}
   </div>`;
   out.innerHTML = `    <div class="scr">${head}${items}${amt}${war}</div>
-    ${printInvoice(r, {name, d, inv, cat: cat ? cat.toUpperCase() : ""})}
+    ${printInvoice(r, {name, d, inv, del: del > 0 ? del : 0, cat: cat ? cat.toUpperCase() : ""})}
     <footer><button type="button" id="refresh">${t("refresh")}</button><button type="button" id="clear">${t("clear")}</button></footer>`;
   prn.disabled = shr.disabled = false;
   $("refresh").onclick = () => search(mplIn.value, mobIn.value, true);
