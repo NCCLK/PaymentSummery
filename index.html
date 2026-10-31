@@ -646,13 +646,12 @@ function render(r){
 
   let lateHtml;
   if (lateOk){
-    const overdue = toNum(g(C.overdue)), charges = toNum(g(C.lateChg)), totalOver = toNum(g(C.totalOver));
+    const overdue = toNum(g(C.overdue)), totalOver = toNum(g(C.totalOver));
     const lPaid = toNum(g(C.latePaid)), disc = toNum(g(C.discount)), pending = toNum(g(C.pendingLate));
     const recv = toNum(g(C.received));
     let fin = toNum(g(C.finalOut));
     if (fin == null && invoice != null && recv != null && pending != null) fin = Math.max(0, invoice - recv + pending);
     lateHtml = kv(t("lOverdue"), money(overdue), overdue > 0 ? "red" : "") +
-      kv(t("lCharges"), money(charges)) +
       kv(t("lTotal"), money(totalOver), totalOver > 0 ? "red" : "") +
       kv(t("lPaid"), money(lPaid)) +
       kv(t("lDisc"), money(disc)) +
