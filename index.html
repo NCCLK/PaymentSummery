@@ -628,16 +628,28 @@ function render(r){
   n = Math.min(6, Math.max(isNaN(n) ? 0 : n, lastPaid));
   const dp = parseDate(g(C.dpDate)) || parseDate(g(C.invDate));
   let rows = "";
+  /* Payments are applied to instalments oldest-first, so a part-payment or an over-payment on one
+     instalment no longer shows up as hundreds of days overdue / late on the others. */
+  const dueAmt = insAmt != null && insAmt > 0 ? insAmt : null;
+  const slots = C.pay.map(([a, d]) => ({ amt: toNum(g(a)) || 0, date: parseDate(g(d)) }));
+  const cumPaid = []; slots.reduce((s, x, k) => (cumPaid[k] = s + x.amt), 0);
+  const totalPaidIns = cumPaid[cumPaid.length - 1] || 0;
   for (let i = 0; i < n; i++){
     const [aCol, dCol] = C.pay[i];
     const pAmt = toNum(g(aCol)), pDate = parseDate(g(dCol)), pTxt = g(dCol);
-    const dueAmt = insAmt != null && insAmt > 0 ? insAmt : null;
     let due = dp ? addMonths(dp, i + 1) : (!(pAmt > 0) && pDate ? pDate : null);
-    const rowBal = dueAmt != null ? Math.max(0, dueAmt - (pAmt || 0)) : null;
-    const settled = dueAmt != null && (pAmt || 0) >= dueAmt - 0.005;
+    const alloc = dueAmt != null ? Math.min(dueAmt, Math.max(0, totalPaidIns - i * dueAmt)) : 0;
+    const rowBal = dueAmt != null ? Math.max(0, dueAmt - alloc) : null;
+    const settled = dueAmt != null && alloc >= dueAmt - 0.5;
+    /* date this instalment was fully covered = date of the payment that took the running total past it */
+    let coverDate = null;
+    if (settled){
+      const j = cumPaid.findIndex(c => c >= (i + 1) * dueAmt - 0.5);
+      if (j > -1) for (let k = 0; k <= j; k++) if (slots[k].date && (!coverDate || slots[k].date > coverDate)) coverDate = slots[k].date;
+    }
     let tag = '<span class="tag none">—</span>';
     if (due){
-      if (settled && pDate){ const d = daysBetween(due, pDate);
+      if (settled && coverDate){ const d = daysBetween(due, coverDate);
         tag = d > 0 ? `<span class="tag late">${t("paidLate", d)}</span>` : `<span class="tag ok">${t("onTime")}</span>`;
       } else if (!settled && dueAmt != null){ const d = daysBetween(due, today);
         tag = d > 0 ? `<span class="tag late">${t("overdueTag", d)}</span>`
