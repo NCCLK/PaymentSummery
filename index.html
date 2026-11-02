@@ -329,6 +329,12 @@ const fmtDate = d => LANG === "si"
   ? `${String(d.getDate()).padStart(2,"0")} ${SI_MON[d.getMonth()]} ${d.getFullYear()}`
   : d.toLocaleDateString("en-GB", {day:"2-digit", month:"short", year:"numeric"});
 const showDate = s => { const d = parseDate(s); return d ? fmtDate(d) : clean(s); };
+/* Report date from the sheet: it may be typed day/month or month/day. When both readings are valid, use the one closest to today. */
+function asOfDate(){
+  const a = parseDate(ASOF, true), b = parseDate(ASOF, false);
+  if (!a || !b) return a || b || null;
+  const now = Date.now(); return Math.abs(a - now) <= Math.abs(b - now) ? a : b;
+}
 const daysBetween = (a, b) => Math.round((b - a) / 86400000);
 const addMonths = (d, n) => { const x = new Date(d.getFullYear(), d.getMonth() + n, 1);
   x.setDate(Math.min(d.getDate(), new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate())); return x; };
@@ -598,7 +604,7 @@ function render(r){
   const bal = balCol != null ? balCol : toNum(g(C.balance));   /* Balance Due comes from column AL; falls back to the plain balance if AL is empty */
   const dpAmt = toNum(g(C.dpAmt)), insAmt = toNum(g(C.insAmt));
   const lateOk = g(C.lateStatus).toUpperCase() === "OK";
-  const today = (ASOF && parseDate(ASOF, true)) || new Date(); today.setHours(0,0,0,0);
+  const today = new Date((asOfDate() || new Date()).getTime()); today.setHours(0,0,0,0);
 
   const account = `<div class="sheet">
     ${kv(t("mplNo"), esc(g(C.mpl)))}
@@ -665,7 +671,7 @@ function render(r){
 
   const late = `<div class="sheet"><div class="sec late">${t("lateTitle")}</div>${lateHtml}</div>`;
   out.innerHTML = `<div class="ph"><img src="logo.png" alt="NCC"><div><h2>${t("acctTitle")}</h2><p>${esc(g(C.mpl))} · ${esc(g(C.name))} · ${t("printed")} ${esc(fmtDate(new Date()))} · v${CONFIG.VERSION}</p></div></div>
-    ${ASOF ? `<p class="asof">${t("asof", esc(showDate(ASOF) || ASOF))}</p>` : ""}
+    ${ASOF ? `<p class="asof">${t("asof", esc(asOfDate() ? fmtDate(asOfDate()) : ASOF))}</p>` : ""}
     ${account}${instal}${late}
     <footer><button type="button" id="refresh">${t("refresh")}</button><button type="button" id="clear">${t("clear")}</button></footer>`;
   prn.disabled = shr.disabled = false;
